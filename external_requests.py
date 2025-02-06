@@ -21,30 +21,9 @@ def get_guest_token() -> str:
   token: str = response.json()['token']
   return token
 
-def login_customer():
-  phone = os.getenv("PHONE")
-  password = os.getenv("PASS")
-
-  headers: Dict = {
-    'X-TAPIDEE-TOKEN': get_guest_token()
-  }
-  data: Dict = {
-    'mobile_phone': phone,
-    'password': password
-  }
-
-  user_url = request_url + 'tokens/user'
-
-  response = requests.post(user_url, headers=headers, data=data, verify=False)
-  customer_details: Dict = response.json()
-  return customer_details
-
-__AuthToken = login_customer()['token']
-Customer = login_customer()['customer']
-
 def get_products(account_id: int):
   headers: Dict = {
-    'X-TAPIDEE-TOKEN': __AuthToken
+    'X-TAPIDEE-TOKEN': get_guest_token()
   }
   data: Dict = {
     'account_id': account_id,

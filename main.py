@@ -7,7 +7,7 @@ import sys
 import traceback
 import pdb
 from merchants import FrequentMerchants
-from external_requests import Customer, get_products
+from external_requests import get_products
 
 load_dotenv()
 
@@ -19,14 +19,13 @@ order_dictionary = {}
 
 # COMMANDS
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  await update.message.reply_text(f"Hello customer {Customer['first_name']}")
+  await update.message.reply_text(f"Hello are you ready to order?")
 
 async def delete_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
   global message 
   message = ""
   await update.message.reply_text(f"Order list deleted")
 
-# List Frequently ordered restos
 async def merchants_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
   merchant_list_message = ''
   for merchant in FrequentMerchants:
@@ -39,24 +38,17 @@ async def select_merchant_command(update: Update, context: ContextTypes.DEFAULT_
   for m in FrequentMerchants:
     if m['name'].lower() == merchant.lower():
       id = m['id']
+    else:
+      await update.message.reply_text('Unable to find merchant')
+      return
   
   global message
   global products
-  global order_dictionary
-  order_dictionary = {} # reset this dictionary everytime the set merchant command is called
   products = get_products(id)
-  product_list = ''
 
-  for p in products:
-    # initialize order dictionary
-    order_dictionary[p['name']] = {
-      "retail_price": p['retail_price'],
-      "customers": []
-    }
-    product_list += f"{p['name']} {p['retail_price']}\n"
+  product_list = generate_product_order() 
 
   message += f"{merchant}\n\n"
-  # returns the list of products available to be ordered from the merchant
   await update.message.reply_text(product_list)
 
 
@@ -138,6 +130,20 @@ def get_best_match(product_list, product_ordered):
       return -1
   else:
       return best_match
+
+def generate_product_order():
+  global order_dictionary
+  order_dictionary = {}
+  product_list = ''
+
+  for p in products:
+    order_dictionary[p['name']] = {
+      "retail_price": p['retail_price'],
+      "customers": []
+    }
+    product_list += f"{p['name']} {p['retail_price']}\n"
+
+  return product_list
 
 
 if __name__ == '__main__':
