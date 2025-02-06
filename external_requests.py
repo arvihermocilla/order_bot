@@ -17,7 +17,7 @@ def get_guest_token() -> str:
   }
   guest_url = request_url + 'tokens/guest'
 
-  response = requests.post(guest_url, data=data)
+  response = requests.post(guest_url, data=data, verify=False)
   token: str = response.json()['token']
   return token
 
@@ -35,17 +35,16 @@ def login_customer():
 
   user_url = request_url + 'tokens/user'
 
-  response = requests.post(user_url, headers=headers, data=data)
+  response = requests.post(user_url, headers=headers, data=data, verify=False)
   customer_details: Dict = response.json()
   return customer_details
 
-AuthToken = login_customer()['token']
+__AuthToken = login_customer()['token']
 Customer = login_customer()['customer']
 
 def get_products(account_id: int):
-  global AuthToken
   headers: Dict = {
-    'X-TAPIDEE-TOKEN': AuthToken
+    'X-TAPIDEE-TOKEN': __AuthToken
   }
   data: Dict = {
     'account_id': account_id,
@@ -55,8 +54,8 @@ def get_products(account_id: int):
 
   products_url = request_url + 'products'
 
-  response = requests.get(products_url, headers=headers, data=data)
-  products = permit(response.json()['products'], "name", "retail_price", "account_id")
+  response = requests.get(products_url, headers=headers, data=data, verify=False)
+  products = permit(response.json()['products'], "name", "retail_price")
   return products
 
 # method to exlcude unneeded columns from the response

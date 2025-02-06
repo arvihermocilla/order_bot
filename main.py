@@ -1,14 +1,13 @@
 from dotenv import load_dotenv
 import os
 from typing import Final
-from telegram import Update, ReplyKeyboardRemove
-from telegram.constants import ParseMode
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, PollAnswerHandler
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import sys
 import traceback
 import pdb
 from merchants import FrequentMerchants
-from external_requests import AuthToken, Customer, get_products
+from external_requests import Customer, get_products
 
 load_dotenv()
 
@@ -16,16 +15,11 @@ TOKEN: Final = os.getenv("TOKEN")
 BOT_USERNAME: Final = os.getenv("BOT_USERNAME")
 message = ''
 products = []
+order_dictionary = {}
 
 # COMMANDS
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
   await update.message.reply_text(f"Hello customer {Customer['first_name']}")
-
-async def add_order_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  order = " ".join(context.args)
-  global message 
-  message += update.message.from_user.first_name + ' ordered ' + order + '\n'
-  await update.message.reply_text(f"{message}")
 
 async def delete_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
   global message 
@@ -46,79 +40,48 @@ async def select_merchant_command(update: Update, context: ContextTypes.DEFAULT_
     if m['name'].lower() == merchant.lower():
       id = m['id']
   
+  global message
   global products
+  global order_dictionary
+  order_dictionary = {} # reset this dictionary everytime the set merchant command is called
   products = get_products(id)
   product_list = ''
 
   for p in products:
+    # initialize order dictionary
+    order_dictionary[p['name']] = {
+      "retail_price": p['retail_price'],
+      "customers": []
+    }
     product_list += f"{p['name']} {p['retail_price']}\n"
 
+  message += f"{merchant}\n\n"
+  # returns the list of products available to be ordered from the merchant
   await update.message.reply_text(product_list)
 
 
-### POLL FOR ORDERS ###
-# MODIFY THIS SINCE THIS IS COPIED STRAIGHT FROM THE DOCUMENTATION
-async def poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Sends a predefined poll"""
-    questions = ["Good", "Really good", "Fantastic", "Great"]
-    message = await context.bot.send_poll(
-        update.effective_chat.id,
-        "How are you?",
-        questions,
-        is_anonymous=False,
-        allows_multiple_answers=True,
-    )
-    # Save some info about the poll the bot_data for later use in receive_poll_answer
-    payload = {
-        message.poll.id: {
-            "questions": questions,
-            "message_id": message.message_id,
-            "chat_id": update.effective_chat.id,
-            "answers": 0,
-        }
-    }
-    context.bot_data.update(payload)
+async def add_order_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+  order = " ".join(context.args)
+  global order_dictionary
 
-async def receive_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Summarize a users poll vote"""
-    answer = update.poll_answer
-    answered_poll = context.bot_data[answer.poll_id]
-    try:
-        questions = answered_poll["questions"]
-    # this means this poll answer update is from an old poll, we can't do our answering then
-    except KeyError:
-        return
-    selected_options = answer.option_ids
-    answer_string = ""
-    for question_id in selected_options:
-        if question_id != selected_options[-1]:
-            answer_string += questions[question_id] + " and "
-        else:
-            answer_string += questions[question_id]
+  product_names = [product['name'] for product in products]
+  p = get_best_match(product_names, order)
+  if p == -1:
+    await update.message.reply_text(f"Make order more specific")
+  else:
+    name = update.message.from_user.first_name
+    order_dictionary[p]["customers"].append(name)
+    await update.message.reply_text(f"Order sucessfully added")
 
-    # message to reply and s
-    # await context.bot.send_message(
-    #     answered_poll["chat_id"],
-    #     f"{update.effective_user.mention_html()} feels {answer_string}!", 
-    #     parse_mode=ParseMode.HTML,
-    # )
-    answered_poll["answers"] += 1
-    # Close poll after three participants voted
-    if answered_poll["answers"] == 3:
-        await context.bot.stop_poll(answered_poll["chat_id"], answered_poll["message_id"])
-
-async def receive_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """On receiving polls, reply to it by a closed poll copying the received poll"""
-    actual_poll = update.effective_message.poll
-    # Only need to set the question and options, since all other parameters don't matter for
-    # a closed poll
-    await update.effective_message.reply_poll(
-        question=actual_poll.question,
-        options=[o.text for o in actual_poll.options],
-        # with is_closed true, the poll/quiz is immediately closed
-        is_closed=True,
-        reply_markup=ReplyKeyboardRemove(),
-    )
+async def show_order_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+  global message
+  for product, details in order_dictionary.items():
+    if not details["customers"]:
+        continue
+    retail_price = details["retail_price"]
+    customers = "\n".join(f"- {customer}" for customer in details["customers"])
+    message += f"{product}({retail_price})\n{customers}\n\n"
+  await update.message.reply_text(message)
 
 # RESPONSES
 def handle_response(text: str) -> str:
@@ -148,11 +111,33 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # displays errors
 async def error(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    _, _, tb = sys.exc_info()
-    line_number = traceback.extract_tb(tb)[-1][1]
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    error_traceback = traceback.format_exception(exc_type, exc_value, exc_traceback)
-    print(f"Update {update} caused error {context.error}:\n{''.join(error_traceback)}")
+  _, _, tb = sys.exc_info()
+  line_number = traceback.extract_tb(tb)[-1][1]
+  exc_type, exc_value, exc_traceback = sys.exc_info()
+  error_traceback = traceback.format_exception(exc_type, exc_value, exc_traceback)
+  print(f"Update {update} caused error {context.error}:\n{''.join(error_traceback)}")
+
+# match the best order to the list of products
+def get_best_match(product_list, product_ordered):
+  order_words = product_ordered.lower().split()
+
+  def count_matches(string):
+      return sum(1 for word in order_words if word in string.lower())
+
+  # Count matches for each string
+  match_counts = {string: count_matches(string) for string in product_list}
+
+  # Find the string with the maximum matches
+  best_match = max(match_counts, key=match_counts.get)
+  best_match_count = match_counts[best_match]
+
+  # Find if there are ties
+  tied = [key for key, value in match_counts.items() if value == best_match_count]
+  
+  if len(tied) > 1:
+      return -1
+  else:
+      return best_match
 
 
 if __name__ == '__main__':
@@ -161,15 +146,11 @@ if __name__ == '__main__':
 
   # Command handler
   app.add_handler(CommandHandler('start', start_command))
-  app.add_handler(CommandHandler('add_order', add_order_command))
   app.add_handler(CommandHandler('delete_list', delete_list_command))
   app.add_handler(CommandHandler('merchants', merchants_command))
   app.add_handler(CommandHandler('set_merchant', select_merchant_command))
-  # RUN POLL
-  app.add_handler(CommandHandler("poll", poll))
-  app.add_handler(MessageHandler(filters.POLL, receive_poll))
-  app.add_handler(PollAnswerHandler(receive_poll_answer))
-
+  app.add_handler(CommandHandler('add_order', add_order_command))
+  app.add_handler(CommandHandler('show_order', show_order_command))
 
 
   # Message Handler
