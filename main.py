@@ -24,6 +24,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def delete_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
   global message 
   message = ""
+  generate_product_order()
   await update.message.reply_text(f"Order list deleted")
 
 async def merchants_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -38,18 +39,17 @@ async def select_merchant_command(update: Update, context: ContextTypes.DEFAULT_
   for m in FrequentMerchants:
     if m['name'].lower() == merchant.lower():
       id = m['id']
-    else:
-      await update.message.reply_text('Unable to find merchant')
-      return
-  
-  global message
-  global products
-  products = get_products(id)
 
-  product_list = generate_product_order() 
+  if isinstance(id, int):
+    global message
+    global products
+    products = get_products(id)
+    product_list = generate_product_order() 
+    message += f"{merchant}\n\n"
 
-  message += f"{merchant}\n\n"
-  await update.message.reply_text(product_list)
+    await update.message.reply_text(product_list)
+  else:
+    await update.message.reply_text('Unable to find merchant')
 
 
 async def add_order_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -73,7 +73,11 @@ async def show_order_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     retail_price = details["retail_price"]
     customers = "\n".join(f"- {customer}" for customer in details["customers"])
     message += f"{product}({retail_price})\n{customers}\n\n"
-  await update.message.reply_text(message)
+  
+  if message:
+    await update.message.reply_text(message)
+  else:
+    await update.message.reply_text('Set merchant to start ordering')
 
 # RESPONSES
 def handle_response(text: str) -> str:
