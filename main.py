@@ -13,7 +13,7 @@ load_dotenv()
 
 TOKEN: Final = os.getenv("TOKEN")
 BOT_USERNAME: Final = os.getenv("BOT_USERNAME")
-message = ''
+selected_merchant = ''
 products = []
 order_dictionary = {}
 
@@ -22,8 +22,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
   await update.message.reply_text(f"Hello are you ready to order?")
 
 async def delete_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  global message 
-  message = ""
   generate_product_order()
   await update.message.reply_text(f"Order list deleted")
 
@@ -41,11 +39,11 @@ async def select_merchant_command(update: Update, context: ContextTypes.DEFAULT_
       id = m['id']
 
   if isinstance(id, int):
-    global message
+    global selected_merchant
     global products
     products = get_products(id)
     product_list = generate_product_order() 
-    message += f"{merchant}\n\n"
+    selected_merchant = merchant.title()
 
     await update.message.reply_text(product_list)
   else:
@@ -66,7 +64,7 @@ async def add_order_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"Order sucessfully added")
 
 async def show_order_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  global message
+  message = f"{selected_merchant}\n\n"
   for product, details in order_dictionary.items():
     if not details["customers"]:
         continue
