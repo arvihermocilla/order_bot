@@ -77,6 +77,27 @@ async def show_order_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
   else:
     await update.message.reply_text('Set merchant to start ordering')
 
+# async def cancel_order_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+#   # this method takes an optional parameter
+#   # this method cancels the specific order if order is present but if not it cancels all orders of the user
+#   global order_dictionary
+#   order = " ".join(context.args)
+#   name = update.message.from_user.first_name
+#   product_names = [product['name'] for product in products]
+#   pname = get_best_match(product_names, order)
+
+#   if len(order) == 0:
+#     for product, details in order_dictionary.items():
+#       if not details['customers']:
+#         continue
+#       details['customers'].remove(name)
+#   else:
+#     for product, details in order_dictionary.items():
+#       if product == pname:
+#         details['customers'].remove(name)
+  
+#   await update.message.reply_text(f'{name} cancelled their order')
+
 # RESPONSES
 def handle_response(text: str) -> str:
   if 'hello' in text.lower():
@@ -159,6 +180,7 @@ if __name__ == '__main__':
   app.add_handler(CommandHandler('set_merchant', select_merchant_command))
   app.add_handler(CommandHandler('add_order', add_order_command))
   app.add_handler(CommandHandler('show_order', show_order_command))
+  app.add_handler(CommandHandler('cancel_order', cancel_order_command))
 
 
   # Message Handler
