@@ -13,6 +13,7 @@ load_dotenv()
 
 TOKEN: Final = os.getenv("TOKEN")
 BOT_USERNAME: Final = os.getenv("BOT_USERNAME")
+USER_ID: Final = os.getenv("USER_ID")
 selected_merchant = ''
 products = []
 order_dictionary = {}
@@ -22,8 +23,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
   await update.message.reply_text(f"Hello are you ready to order?")
 
 async def delete_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  generate_product_order()
-  await update.message.reply_text(f"Order list deleted")
+  user = update.message.from_user
+
+  if str(user.id) == USER_ID:
+    generate_product_order()
+    await update.message.reply_text(f"Order list deleted")
+  else:
+    await update.message.reply_text(f"Only admin Reymond can delete order list")
 
 async def merchants_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
   merchant_list_message = ''
@@ -34,21 +40,25 @@ async def merchants_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def select_merchant_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
   merchant = " ".join(context.args)
-  for m in FrequentMerchants:
-    if m['name'].lower() == merchant.lower():
-      id = m['id']
+  user = update.message.from_user
 
-  if isinstance(id, int):
-    global selected_merchant
-    global products
-    products = get_products(id)
-    product_list = generate_product_order() 
-    selected_merchant = merchant.title()
+  if str(user.id) == USER_ID:
+    for m in FrequentMerchants:
+      if m['name'].lower() == merchant.lower():
+        id = m['id']
 
-    await update.message.reply_text(product_list)
+    if isinstance(id, int):
+      global selected_merchant
+      global products
+      products = get_products(id)
+      product_list = generate_product_order() 
+      selected_merchant = merchant.title()
+
+      await update.message.reply_text(product_list)
+    else:
+      await update.message.reply_text('Unable to find merchant')
   else:
-    await update.message.reply_text('Unable to find merchant')
-
+    await update.message.reply_text('Only admin Reymond can set merchant')
 
 async def add_order_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
   order = " ".join(context.args)
@@ -61,21 +71,11 @@ async def add_order_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
   else:
     name = update.message.from_user.first_name
     order_dictionary[p]["customers"].append(name)
-    await update.message.reply_text(f"Order sucessfully added")
+    new_order_list = show_order_list()
+    await update.message.reply_text(new_order_list)
 
 async def show_order_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-  message = f"{selected_merchant}\n\n"
-  for product, details in order_dictionary.items():
-    if not details["customers"]:
-        continue
-    retail_price = details["retail_price"]
-    customers = "\n".join(f"- {customer}" for customer in details["customers"])
-    message += f"{product}({retail_price})\n{customers}\n\n"
-  
-  if message:
-    await update.message.reply_text(message)
-  else:
-    await update.message.reply_text('Set merchant to start ordering')
+  await update.message.reply_text(show_order_list())
 
 async def cancel_order_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
   global order_dictionary
@@ -93,8 +93,8 @@ async def cancel_order_command(update: Update, context: ContextTypes.DEFAULT_TYP
     for product, details in order_dictionary.items():
       if product == pname:
         details['customers'].remove(name)
-  
-  await update.message.reply_text(f'{name} cancelled their order')
+
+  await update.message.reply_text(show_order_list())
 
 # RESPONSES
 def handle_response(text: str) -> str:
@@ -166,6 +166,19 @@ def generate_product_order():
 
   return product_list
 
+def show_order_list():
+  message = f"{selected_merchant}\n\n"
+  for product, details in order_dictionary.items():
+    if not details["customers"]:
+        continue
+    retail_price = details["retail_price"]
+    customers = "\n".join(f"- {customer}" for customer in details["customers"])
+    message += f"{product}({retail_price})\n{customers}\n\n"
+  
+  if message:
+    return message
+  else:
+    return 'Set merchant to start ordering'
 
 if __name__ == '__main__':
   print('Bot starting')
