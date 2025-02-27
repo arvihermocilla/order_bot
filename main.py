@@ -96,6 +96,34 @@ async def cancel_order_command(update: Update, context: ContextTypes.DEFAULT_TYP
 
   await update.message.reply_text(show_order_list())
 
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+  help_message = f"""
+  HOW TO USE
+  Getting the list of merchants
+  /merchants
+
+  Adding order
+  /add_order product
+  
+  Cancelling specific user order
+  /cancel_order product
+  
+  Cancelling all user order
+  /cancel_order
+
+  Show current list of Order
+  /show_order
+  
+  ADMIN ONLY COMMANDS
+  
+  Deleting the List of Order
+  /delete_list
+  
+  Setting the merchant
+  /set_merchant merchant_name"""
+
+  await update.message.reply_text(help_message)
+
 # RESPONSES
 def handle_response(text: str) -> str:
   if 'hello' in text.lower():
@@ -192,7 +220,7 @@ if __name__ == '__main__':
   app.add_handler(CommandHandler('add_order', add_order_command))
   app.add_handler(CommandHandler('show_order', show_order_command))
   app.add_handler(CommandHandler('cancel_order', cancel_order_command))
-
+  app.add_handler(CommandHandler('help', help_command))
 
   # Message Handler
   app.add_handler(MessageHandler(filters.TEXT, handle_message))
